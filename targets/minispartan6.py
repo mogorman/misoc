@@ -34,7 +34,24 @@ class _CRG(Module):
 			i_CLKIN1=clk32b, i_CLKIN2=0, i_CLKINSEL=1,
 			p_CLKIN1_PERIOD=1/f0, p_CLKIN2_PERIOD=0.,
 			i_CLKFBIN=pll_fb, o_CLKFBOUT=pll_fb, o_LOCKED=pll_lckd,
-				self.specials += Instance("ODDR2", p_DDR_ALIGNMENT="NONE",
+			o_CLKOUT0=pll[0], p_CLKOUT0_DUTY_CYCLE=.5,
+			o_CLKOUT1=pll[1], p_CLKOUT1_DUTY_CYCLE=.5,
+			o_CLKOUT2=pll[2], p_CLKOUT2_DUTY_CYCLE=.5,
+			o_CLKOUT3=pll[3], p_CLKOUT3_DUTY_CYCLE=.5,
+			o_CLKOUT4=pll[4], p_CLKOUT4_DUTY_CYCLE=.5,
+			o_CLKOUT5=pll[5], p_CLKOUT5_DUTY_CYCLE=.5,
+			p_CLKOUT0_PHASE=0., p_CLKOUT0_DIVIDE=p//1,
+			p_CLKOUT1_PHASE=0., p_CLKOUT1_DIVIDE=p//1,
+			p_CLKOUT2_PHASE=0., p_CLKOUT2_DIVIDE=p//1,
+			p_CLKOUT3_PHASE=0., p_CLKOUT3_DIVIDE=p//1,
+			p_CLKOUT4_PHASE=0., p_CLKOUT4_DIVIDE=p//1, # sys
+			p_CLKOUT5_PHASE=270., p_CLKOUT5_DIVIDE=p//1, # sys_ps
+		)
+		self.specials += Instance("BUFG", i_I=pll[4], o_O=self.cd_sys.clk)
+		self.specials += Instance("BUFG", i_I=pll[5], o_O=self.cd_sys_ps.clk)
+		self.specials += AsyncResetSynchronizer(self.cd_sys, ~pll_lckd)
+
+		self.specials += Instance("ODDR2", p_DDR_ALIGNMENT="NONE",
 			p_INIT=0, p_SRTYPE="SYNC",
 			i_D0=0, i_D1=1, i_S=0, i_R=0, i_CE=1,
 			i_C0=self.cd_sys.clk, i_C1=~self.cd_sys.clk,
@@ -73,10 +90,15 @@ class BaseSoC(SDRAMSoC):
 		)
 		self.submodules.sdrphy = gensdrphy.GENSDRPHY(platform.request("sdram"))
 		self.register_sdram_phy(self.sdrphy.dfi, self.sdrphy.phy_settings, sdram_geom, sdram_timing)
-
-		# BIOS is in SPI flash
-		self.submodules.spiflash = spiflash.SpiFlash(platform.request("spiflash"), dummy=4, div=6)
-		self.flash_boot_address = 0x70000
-		self.register_rom(self.spiflash.bus)
+                # BIOS is in SPI flash
+#		self.submodules.spiflash = spiflash.SpiFlash(platform.request("spiflash"), dummy=4, div=6)
+#		self.flash_boot_address = 0x70000
+#		self.register_rom(self.spiflash.bus)
+#		spiflash_pads = platform.request("spiflash")
+#		spiflash_pads.clk = Signal()
+#		self.specials += Instance("STARTUPE2",i_CLK=0, i_GSR=0, i_GTS=0, i_KEYCLEARB=0, i_PACK=0, i_USRCCLKO=spiflash_pads.clk, i_USRCCLKTS=0, i_USRDONEO=1, i_USRDONETS=1)
+#		self.submodules.spiflash = spiflash.SpiFlash(spiflash_pads, dummy=11, div=2)
+#		self.flash_boot_address = 0xb00000
+#		self.register_rom(self.spiflash.bus)
 
 default_subtarget = BaseSoC

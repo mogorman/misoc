@@ -18,7 +18,7 @@ class _CRG(Module):
 		]
 
 class SimpleSoC(GenSoC, IntegratedBIOS):
-	default_platform = "de0nano"	# /!\ Adapt this!
+	default_platform = "mini_spartan_6"	# /!\ Adapt this!
 	clk_name = "clk50"				# /!\ Adapt this!
 	clk_freq = 50*1000000			# /!\ Adapt this!
 
