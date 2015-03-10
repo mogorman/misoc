@@ -1,7 +1,9 @@
 from migen.fhdl.std import *
 from migen.bus import wishbone
 
-from misoclib.gensoc import GenSoC, IntegratedBIOS
+from misoclib.soc import SoC, mem_decoder
+from misoclib.com.liteeth.phy import LiteEthPHY
+from misoclib.com.liteeth.mac import LiteEthMAC
 
 class _CRG(Module):
 	def __init__(self, clk_in):
@@ -17,23 +19,39 @@ class _CRG(Module):
 			self.cd_sys.rst.eq(~rst_n)
 		]
 
-class SimpleSoC(GenSoC, IntegratedBIOS):
-	default_platform = "mini_spartan_6"	# /!\ Adapt this!
-	clk_name = "clk50"				# /!\ Adapt this!
-	clk_freq = 50*1000000			# /!\ Adapt this!
+class BaseSoC(SoC):
+	def __init__(self, platform, **kwargs):
+		SoC.__init__(self, platform,
+			clk_freq=int((1/(platform.default_clk_period))*1000000000),
+			with_rom=True,
+			with_sdram=True, sdram_size=16*1024,
+			**kwargs)
+		clk_in = platform.request(platform.default_clk_name)
+		self.submodules.crg = _CRG(clk_in if not hasattr(clk_in, "p") else clk_in.p)
 
-	def __init__(self, platform):
-		GenSoC.__init__(self, platform,
-			clk_freq=self.clk_freq,
-			cpu_reset_address=0)
-		IntegratedBIOS.__init__(self)
+class MiniSoC(BaseSoC):
+	csr_map = {
+		"ethphy":		20,
+		"ethmac":		21
+	}
+	csr_map.update(BaseSoC.csr_map)
 
-		self.submodules.crg = _CRG(platform.request(self.clk_name))
+	interrupt_map = {
+		"ethmac":		2,
+	}
+	interrupt_map.update(BaseSoC.interrupt_map)
 
-		# use on-board SRAM as SDRAM
-		sys_ram_size = 16*1024
-		self.submodules.sys_ram = wishbone.SRAM(sys_ram_size)
-		self.add_wb_slave(lambda a: a[27:29] == 2, self.sys_ram.bus)
-		self.add_cpu_memory_region("sdram", 0x40000000, sys_ram_size)
+	mem_map = {
+		"ethmac":	0x30000000, # (shadow @0xb0000000)
+	}
+	mem_map.update(BaseSoC.mem_map)
 
-default_subtarget = SimpleSoC
+	def __init__(self, platform, **kwargs):
+		BaseSoC.__init__(self, platform, **kwargs)
+
+		self.submodules.ethphy = LiteEthPHY(platform.request("eth_clocks"), platform.request("eth"))
+		self.submodules.ethmac = LiteEthMAC(phy=self.ethphy, dw=32, interface="wishbone", with_hw_preamble_crc=False)
+		self.add_wb_slave(mem_decoder(self.mem_map["ethmac"]), self.ethmac.bus)
+		self.add_memory_region("ethmac", self.mem_map["ethmac"]+0x80000000, 0x2000)
+
+default_subtarget = BaseSoC
